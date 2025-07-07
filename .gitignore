@@ -18,3 +18,4 @@ backend/model/model.pkl
 backend/model/vectorizer.pkl
 model/model.pkl
 model/vectorizer.pkl
+.env
