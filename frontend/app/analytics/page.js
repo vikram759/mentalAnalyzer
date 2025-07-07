@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Badge } from "@/components/ui/badge"
+import { useEffect,useState } from "react"
 import { Brain, ArrowLeft, TrendingUp, Calendar, Target, Zap } from "lucide-react"
 import {
   LineChart,
@@ -21,33 +22,85 @@ import {
 } from "recharts"
 
 // Mock data for demonstration
-const emotionTrendData = [
-  { date: "2025-01-01", happy: 7, sad: 2, anxious: 3, excited: 5, calm: 8 },
-  { date: "2025-01-02", happy: 8, sad: 1, anxious: 2, excited: 6, calm: 7 },
-  { date: "2025-01-03", happy: 6, sad: 3, anxious: 4, excited: 4, calm: 6 },
-  { date: "2025-01-04", happy: 9, sad: 1, anxious: 1, excited: 8, calm: 9 },
-  { date: "2025-01-05", happy: 5, sad: 4, anxious: 5, excited: 3, calm: 5 },
-  { date: "2025-01-06", happy: 8, sad: 2, anxious: 2, excited: 7, calm: 8 },
-  { date: "2025-01-07", happy: 7, sad: 2, anxious: 3, excited: 6, calm: 7 },
-]
 
-const weeklyEmotionData = [
-  { emotion: "Happy", count: 45, percentage: 35 },
-  { emotion: "Calm", count: 38, percentage: 30 },
-  { emotion: "Excited", count: 25, percentage: 20 },
-  { emotion: "Anxious", count: 12, percentage: 10 },
-  { emotion: "Sad", count: 6, percentage: 5 },
-]
-
-const emotionDistribution = [
-  { name: "Happy", value: 35, color: "#10B981" },
-  { name: "Calm", value: 30, color: "#8B5CF6" },
-  { name: "Excited", value: 20, color: "#F59E0B" },
-  { name: "Anxious", value: 10, color: "#EF4444" },
-  { name: "Sad", value: 5, color: "#6B7280" },
-]
 
 export default function AnalyticsPage() {
+     const [entries, setEntries] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchEntries = async () => {
+      try {
+        const res = await fetch("http://localhost:5000/api/entries")
+        const data = await res.json()
+        setEntries(data.entries)
+        setLoading(false)
+      } catch (err) {
+        console.error("Failed to fetch entries:", err)
+        setLoading(false)
+      }
+    }
+    fetchEntries()
+  }, [])
+
+  const computeAnalytics = () => {
+    const emotionMap = {}
+    const trendMap = {}
+
+    entries.forEach(entry => {
+      const emotion = entry.emotion
+      const date = new Date(entry.timestamp).toISOString().slice(0, 10)
+
+      // Count emotion frequency
+      emotionMap[emotion] = (emotionMap[emotion] || 0) + 1
+
+      // Group emotions by day for trend
+      if (!trendMap[date]) trendMap[date] = {}
+      trendMap[date][emotion] = (trendMap[date][emotion] || 0) + 1
+    })
+
+    // Weekly bar chart data
+    const weeklyEmotionData = Object.keys(emotionMap).map((emotion) => ({
+      emotion,
+      count: emotionMap[emotion],
+    }))
+
+    // Line chart trend data
+    const emotionTrendData = Object.keys(trendMap).map(date => ({
+      date,
+      joy: trendMap[date].joy || 0,
+      sad: trendMap[date].sadness || 0,
+      fear: trendMap[date].fear || 0,
+      anger: trendMap[date].anger || 0,
+      neutral: trendMap[date].neutral || 0,
+      surprise: trendMap[date].surprise || 0,
+      disgust: trendMap[date].disgust || 0,
+    }))
+
+    // Pie chart distribution
+    const emotionDistribution = weeklyEmotionData.map(({ emotion, count }) => {
+      const colorMap = {
+        joy: "#10B981",
+        sad: "#8B5CF6",
+        fear: "#F59E0B",
+        anger: "#EF4444",
+        neutral: "#6B7280",
+        surprise: "#EF4444",
+        disgust: "#14B8A6",
+      }
+      return {
+        name: emotion,
+        value: count,
+        color: colorMap[emotion] || "#8884d8",
+      }
+    })
+
+    return { weeklyEmotionData, emotionTrendData, emotionDistribution }
+  }
+
+  if (loading) return <p className="text-center p-10">Loading analytics...</p>
+
+  const { weeklyEmotionData, emotionTrendData, emotionDistribution } = computeAnalytics()
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       {/* Navigation */}
@@ -151,11 +204,11 @@ export default function AnalyticsPage() {
             <CardContent>
               <ChartContainer
                 config={{
-                  happy: { label: "Happy", color: "#10B981" },
-                  calm: { label: "Calm", color: "#8B5CF6" },
-                  excited: { label: "Excited", color: "#F59E0B" },
-                  anxious: { label: "Anxious", color: "#EF4444" },
-                  sad: { label: "Sad", color: "#6B7280" },
+                  happy: { label: "joy", color: "#10B981" },
+                  calm: { label: "fear", color: "#8B5CF6" },
+                  excited: { label: "anger", color: "#F59E0B" },
+                  anxious: { label: "neutral", color: "#EF4444" },
+                  sad: { label: "sad", color: "#6B7280" },
                 }}
                 className="h-[300px]"
               >
@@ -170,10 +223,10 @@ export default function AnalyticsPage() {
                     />
                     <YAxis />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Line type="monotone" dataKey="happy" stroke="var(--color-happy)" strokeWidth={2} />
-                    <Line type="monotone" dataKey="calm" stroke="var(--color-calm)" strokeWidth={2} />
-                    <Line type="monotone" dataKey="excited" stroke="var(--color-excited)" strokeWidth={2} />
-                    <Line type="monotone" dataKey="anxious" stroke="var(--color-anxious)" strokeWidth={2} />
+                    <Line type="monotone" dataKey="joy" stroke="var(--color-happy)" strokeWidth={2} />
+                    <Line type="monotone" dataKey="fear" stroke="var(--color-calm)" strokeWidth={2} />
+                    <Line type="monotone" dataKey="anger" stroke="var(--color-excited)" strokeWidth={2} />
+                    <Line type="monotone" dataKey="neutral" stroke="var(--color-anxious)" strokeWidth={2} />
                     <Line type="monotone" dataKey="sad" stroke="var(--color-sad)" strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -190,11 +243,11 @@ export default function AnalyticsPage() {
             <CardContent>
               <ChartContainer
                 config={{
-                  happy: { label: "Happy", color: "#10B981" },
-                  calm: { label: "Calm", color: "#8B5CF6" },
-                  excited: { label: "Excited", color: "#F59E0B" },
-                  anxious: { label: "Anxious", color: "#EF4444" },
-                  sad: { label: "Sad", color: "#6B7280" },
+                  happy: { label: "joy", color: "#10B981" },
+                  calm: { label: "fear", color: "#8B5CF6" },
+                  excited: { label: "anger", color: "#F59E0B" },
+                  anxious: { label: "neutral", color: "#EF4444" },
+                  sad: { label: "sad", color: "#6B7280" },
                 }}
                 className="h-[300px]"
               >
@@ -207,7 +260,7 @@ export default function AnalyticsPage() {
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="value"
-                      label={({ name, value }) => `${name}: ${value}%`}
+                      label={({ name, value }) => `${name}: ${parseInt(value/entries.length*100)}%`}
                     >
                       {emotionDistribution.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />

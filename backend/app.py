@@ -1,5 +1,8 @@
 from flask import Flask, request, jsonify
-
+from mongoengine import connect
+from models import JournalEntry
+import os
+from dotenv import load_dotenv
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
@@ -9,6 +12,9 @@ import re
 from flask_cors import CORS
 import pickle
 import traceback
+
+load_dotenv()
+MONGO_URI = os.getenv("MONGO_URI")
 
 # Load the trained model and vectorizer
 with open("model/model.pkl", "rb") as f:
@@ -25,6 +31,8 @@ with open("model/vectorizer.pkl", "rb") as f:
 
 # Initialize Flask app
 app = Flask(__name__)
+# Connect to MongoDB
+connect(host=MONGO_URI)
 CORS(app)  # Enables CORS for all routes
 def get_wordnet_pos(tag):
     if tag.startswith("J"): return wordnet.ADJ
@@ -65,11 +73,27 @@ def predict():
         # Predict emotion
         prediction = model.predict(vectorized_input)[0]
 
-        return jsonify({"emotion": prediction}), 200
+        
+        entry = JournalEntry(text=user_input, emotion=prediction)
+        entry.save()
+
+        return jsonify({"emotion": prediction, "message": "Entry saved!"}), 200
 
     except Exception as e:
         print("Error:", traceback.format_exc())
         return jsonify({"error": "Something went wrong", "trace": str(e)}), 500
+@app.route("/api/entries", methods=["GET"])
+def get_entries():
+    entries = JournalEntry.objects.order_by("-timestamp")
+    result = [
+        {"text": e.text, "emotion": e.emotion, "timestamp": e.timestamp.isoformat()}
+        for e in entries
+    ]
+    if not result:
+        return jsonify({"message": "No entries found"}), 404
+    print("Fetched entries:")  # Debugging line
+    return jsonify({"entries": result}), 200
+
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
